@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AquaLens AI | Global Water Analyzer</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg-top: #dffcff;
+      --bg-mid: #a6eff8;
+      --bg-bottom: #f6fffe;
+      --surface: rgba(255, 255, 255, 0.84);
+      --surface-strong: #ffffff;
+      --surface-line: rgba(8, 109, 161, 0.14);
+      --ink: #083d5b;
+      --ink-soft: #1e6686;
+      --accent: #009dd9;
+      --accent-deep: #0662a6;
+      --accent-bright: #00d4ff;
+      --shadow: 0 24px 70px rgba(6, 65, 109, 0.16);
+      --shadow-soft: 0 14px 38px rgba(6, 65, 109, 0.1);
+      --radius-lg: 24px;
+      --radius-md: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.85), transparent 26%),
+        radial-gradient(circle at 85% 8%, rgba(0, 212, 255, 0.22), transparent 24%),
+        radial-gradient(circle at 80% 30%, rgba(255, 248, 213, 0.44), transparent 16%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 46%, var(--bg-bottom) 100%);
+      overflow: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .layout-container {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      min-height: 100vh;
+      isolation: isolate;
+    }
+
+    @media (max-width: 960px) {
+      body {
+        overflow: auto;
+      }
+
+      .layout-container {
+        grid-template-columns: 1fr;
+      }
+
+      main#map {
+        height: 60vh;
+        order: 2;
+      }
+
+      .ai-panel {
+        order: 1;
+      }
+    }
+
+    .ai-panel {
+      background: var(--surface);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-right: 1px solid var(--surface-line);
+      padding: 2rem 1.8rem 2.4rem;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .ai-panel::before {
+      content: "";
+      position: absolute;
+      inset: -30% -40% auto auto;
+      width: 62%;
+      height: 62%;
+      background: radial-gradient(circle, rgba(0, 212, 255, 0.3), transparent 68%);
+      filter: blur(12px);
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.8rem;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 2.9rem;
+      height: 2.9rem;
+      display: grid;
+      place-items: center;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 32% 30%, #ffffff 0 0.22rem, transparent 0.24rem),
+        linear-gradient(180deg, #7cf4ff 0%, #00b9e8 58%, #0675be 100%);
+      color: #ffffff;
+      box-shadow: 0 12px 24px rgba(0, 102, 163, 0.24);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 0.95rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand-copy span {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--ink-soft);
+      white-space: nowrap;
+    }
+
+    .back-home {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1.1rem;
+      border-radius: 999px;
+      border: 1px solid var(--surface-line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(224, 250, 255, 0.9));
+      font-weight: 700;
+      color: var(--accent-deep);
+      box-shadow: var(--shadow-soft);
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+      white-space: nowrap;
+    }
+
+    .back-home:hover {
+      transform: translateY(-1px);
+      border-color: rgba(0, 115, 166, 0.32);
+      box-shadow: 0 14px 34px rgba(5, 100, 142, 0.18);
+    }
+
+    .panel-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(0, 115, 166, 0.12);
+      color: var(--accent-deep);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+    }
+
+    .panel-title {
+      margin: 0.5rem 0 0.4rem;
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+
+    .panel-subtitle {
+      margin: 0 0 1.4rem;
+      font-size: 1rem;
+      color: var(--ink-soft);
+      max-width: 32ch;
+      line-height: 1.6;
+    }
+
+    #response-area {
+      background: var(--surface-strong);
+      border: 1px solid var(--surface-line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-soft);
+      padding: 1.3rem 1.2rem;
+      flex: 1;            /* Grows to fill space */
+      min-height: 0;      /* Crucial for flex scrolling */
+      overflow-y: auto;   /* Enables the scrollbar */
+      margin-bottom: 1rem;
+    }
+
+    .placeholder {
+      text-align: center;
+      margin-top: 26%;
+      opacity: 0.75;
+      font-size: 0.92rem;
+      color: var(--ink-soft);
+      line-height: 1.7;
+    }
+
+    .section-title {
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 800;
+      font-size: 0.78rem;
+      color: var(--accent-deep);
+      margin: 0 0 0.35rem;
+    }
+
+    .content-text {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--ink-soft);
+      margin: 0 0 1rem;
+    }
+
+    .input-group {
+      margin-top: 1.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.7rem;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.95rem 1rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--surface-line);
+      background: rgba(255, 255, 255, 0.92);
+      font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+      font-size: 0.98rem;
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input[type="text"]:focus {
+      border-color: rgba(0, 115, 166, 0.36);
+      box-shadow: 0 12px 30px rgba(5, 100, 142, 0.16);
+    }
+
+    #search-btn {
+      width: 100%;
+      padding: 1rem 1.1rem;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(0, 115, 166, 0.2);
+      background: linear-gradient(180deg, #00b9e8 0%, #00d4ff 100%);
+      color: #ffffff;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 16px 36px rgba(6, 102, 166, 0.28);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    }
+
+    #search-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 22px 44px rgba(6, 102, 166, 0.32);
+      filter: saturate(1.04);
+    }
+
+    #search-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    main#map {
+      position: relative;
+      height: 100vh;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.36), transparent 40%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(166, 239, 248, 0.45));
+    }
+
+    main#map .leaflet-pane {
+      filter: saturate(1.06);
+    }
+
+    .spinner {
+      width: 46px;
+      height: 46px;
+      border: 3px solid rgba(0, 157, 217, 0.16);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin: 0 auto 18px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout-container">
+    <aside class="ai-panel">
+      <div class="header-actions">
+        <div class="brand" aria-label="AquaLens AI Home">
+          <div class="brand-mark" aria-hidden="true">AI</div>
+          <div class="brand-copy">
+            <strong>AquaLens AI</strong>
+            <span>Global Water Analyzer</span>
+          </div>
+        </div>
+        <a href="index.html#hero" class="back-home">↩ Back Home</a>
+      </div>
+
+      <span class="panel-kicker">Interactive Map</span>
+      <h1 class="panel-title">Global Water Analyzer</h1>
+      <p class="panel-subtitle">Search any city or region to surface water quality signals, flood risks, scarcity, and nearby restoration hotspots.</p>
+
+      <div id="response-area">
+        <p class="placeholder">Enter a region to analyze local water effects, quality, and risks.</p>
+      </div>
+
+      <div class="input-group">
+        <label class="section-title" for="user-input">Region lookup</label>
+        <input type="text" id="user-input" name="region" placeholder="e.g., Venice, Italy">
+        <button id="search-btn">Analyze Water</button>
+      </div>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const GROQ_API_KEY = "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";
+    const API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+    const map = L.map("map", { zoomControl: false, minZoom: 2 }).setView([20, 0], 2);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}").addTo(map);
+    const markerLayer = L.layerGroup().addTo(map);
+
+    async function runWaterAnalysis() {
+      const query = document.getElementById("user-input").value.trim();
+      if (!query) return;
+
+      const responseArea = document.getElementById("response-area");
+      const searchBtn = document.getElementById("search-btn");
+
+      if (!GROQ_API_KEY || GROQ_API_KEY === "YOUR_GROQ_API_KEY") {
+        responseArea.innerHTML = '<p style="text-align:center; color: var(--accent-deep); font-weight:700; margin-top: 28%;">Add your GROQ_API_KEY to use the analyzer.</p>';
+        return;
+      }
+
+      searchBtn.disabled = true;
+      searchBtn.innerText = "Analyzing...";
+      
+      // Fixed string concatenation here by removing the backslashes
+      responseArea.innerHTML = '<div class="spinner"></div><p style="text-align:center; font-weight:700; color: var(--accent-deep); letter-spacing:0.08em;">Mapping water data for ' + query.toUpperCase() + "...</p>";
+      responseArea.scrollTop = 0;
+      markerLayer.clearLayers();
+
+      const systemPrompt = `Return ONLY a valid JSON object. Analyze water effects in ${query}. Focus on 8-10 points including water quality, flood risks, scarcity, and local landmarks. Format: {"area_desc": "string", "water_summary": "string", "hotspots": [{"name": "string", "lat": number, "lon": number, "effect": "string", "recommendation": "string"}]}`;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: "POST",
+          // Fixed the template literal error here 
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${GROQ_API_KEY}` },
+          body: JSON.stringify({
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: query }],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" }
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || !data?.choices?.length) {
+          throw new Error("API response missing choices");
+        }
+
+        let content;
+        try {
+          content = JSON.parse(data.choices[0].message.content);
+        } catch (parseError) {
+          throw new Error("Invalid JSON returned by API");
+        }
+
+        responseArea.innerHTML = `
+          <span class="section-title">Region: ${query}</span>
+          <p class="content-text">${content.area_desc}</p>
+          <span class="section-title">Hydrological status</span>
+          <p class="content-text">${content.water_summary}</p>
+        `;
+
+        const bounds = [];
+        (content.hotspots || []).forEach((loc) => {
+          const latLng = [loc.lat, loc.lon];
+          bounds.push(latLng);
+
+          const marker = L.circleMarker(latLng, {
+            color: "#009dd9",
+            fillColor: "#00d4ff",
+            fillOpacity: 0.72,
+            radius: 10,
+            weight: 2
+          }).addTo(markerLayer);
+
+          marker.bindPopup(`
+            <div style="font-family: 'Avenir Next', 'Trebuchet MS', 'Segoe UI', sans-serif; font-size: 12px; width: 240px; color: var(--ink); background: #ffffff; padding:12px; border-radius:14px; border:1px solid rgba(8,109,161,0.18); box-shadow: 0 12px 28px rgba(6,65,109,0.14);">
+              <b style="color:#0662a6; font-size: 13px; display:block; margin-bottom:6px;">${loc.name}</b>
+              <b>Water effect:</b> ${loc.effect}<br><br>
+              <b>Advisory:</b> ${loc.recommendation}
+            </div>
+          `);
+        });
+
+        if (bounds.length > 0) map.flyToBounds(bounds, { padding: [50, 50], duration: 1.4 });
+      } catch (error) {
+        responseArea.innerHTML = '<p style="color: var(--accent-deep); text-align: center; margin-top: 32%; font-weight: 700;">' + (error.message || "Data uplink error. Please try again.") + "</p>";
+      } finally {
+        searchBtn.disabled = false;
+        searchBtn.innerText = "Analyze Water";
+      }
+    }
+
+    document.getElementById("search-btn").addEventListener("click", runWaterAnalysis);
+    document.getElementById("user-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        runWaterAnalysis();
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      map.invalidateSize();
+    });
+  </script>
+</body>
+</html>
